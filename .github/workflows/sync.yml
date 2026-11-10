@@ -1,0 +1,78 @@
+name: Sync from djiindex.com
+
+# Copies DJI Index's published open data (https://djiindex.com/data/) into this
+# repository once a day, after the site's daily store check is deployed, and
+# keeps a dated copy of the cheapest-store CSV so the history accumulates here.
+# Reads public files only; no secrets.
+on:
+  schedule:
+    - cron: '30 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download the published files
+        env:
+          UA: 'DJIIndexDataSync/1.0 (+https://djiindex.com/data/)'
+        run: |
+          set -euo pipefail
+          get() { curl -fsSL --retry 3 --retry-delay 20 -A "$UA" "https://djiindex.com$1" -o "$2"; }
+          get /data/latest-prices.json data/latest-prices.json.new
+          get /data/cheapest-by-product.csv data/cheapest-by-product.csv.new
+          # Refuse an empty or broken download instead of committing it.
+          python3 -c "import json,sys; d=json.load(open('data/latest-prices.json.new')); assert d.get('collected_at'), 'no collected_at'"
+          test "$(wc -l < data/cheapest-by-product.csv.new)" -gt 20
+          mv data/latest-prices.json.new data/latest-prices.json
+          mv data/cheapest-by-product.csv.new data/cheapest-by-product.csv
+          # One dated copy per store check (the day DJI Index collected the prices).
+          day=$(python3 -c "import json; print(json.load(open('data/latest-prices.json'))['collected_at'][:10])")
+          mkdir -p "data/history/${day:0:4}"
+          cp data/cheapest-by-product.csv "data/history/${day:0:4}/${day}-cheapest-by-product.csv"
+          echo "DAY=$day" >> "$GITHUB_ENV"
+
+      - name: Download monthly price index editions
+        run: |
+          set -euo pipefail
+          # Editions are frozen once published; fetch any month not yet here.
+          for month in $(python3 - <<'PY'
+          import datetime
+          d = datetime.date.today().replace(day=1)
+          months = []
+          for _ in range(3):
+              months.append(d.strftime('%Y-%m'))
+              d = (d - datetime.timedelta(days=1)).replace(day=1)
+          print(' '.join(months))
+          PY
+          ); do
+            f="reports/${month}-price-index.csv"
+            [ -f "$f" ] && continue
+            if curl -fsSL -A 'DJIIndexDataSync/1.0 (+https://djiindex.com/reports/)' "https://djiindex.com/reports/${month}/price-index.csv" -o "$f.new"; then
+              mv "$f.new" "$f"
+            else
+              rm -f "$f.new"
+            fi
+          done
+
+      - name: Commit changes
+        run: |
+          git config user.name 'djiindex-data-sync'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data reports
+          if git diff --cached --quiet; then
+            echo 'No change.'
+          else
+            git commit -m "data: DJI Index store prices ${DAY}"
+            git push
+          fi

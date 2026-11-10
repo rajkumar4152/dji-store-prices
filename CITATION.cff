@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this data, please cite DJI Index."
+title: "DJI official store prices by country (daily)"
+type: dataset
+authors:
+  - name: "DJI Index"
+    website: "https://djiindex.com/"
+url: "https://djiindex.com/data/"
+repository-code: "https://github.com/djiindex/dji-store-prices"
+license: CC-BY-4.0
+abstract: >-
+  Daily prices from DJI's official online stores in 42 countries, matched by
+  product barcode and converted to US dollars at dated exchange rates, with the
+  monthly DJI Global Price Index.
+keywords:
+  - DJI
+  - price comparison
+  - consumer electronics prices
+  - drones
+  - cross-country price index
