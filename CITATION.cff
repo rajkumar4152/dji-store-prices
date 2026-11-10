@@ -6,7 +6,7 @@ authors:
   - name: "DJI Index"
     website: "https://djiindex.com/"
 url: "https://djiindex.com/data/"
-repository-code: "https://github.com/djiindex/dji-store-prices"
+repository-code: "https://github.com/rajkumar4152/dji-store-prices"
 license: CC-BY-4.0
 abstract: >-
   Daily prices from DJI's official online stores in 42 countries, matched by
